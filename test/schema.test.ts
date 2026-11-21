@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import * as api from '../src/index.ts'
 import { array, f32, field, struct, vec4f } from '../src/schema.ts'
 
 test('empty struct throws', () => {
@@ -77,6 +78,21 @@ test('two structs named A in one tree throw', () => {
     () => struct('B', [field('p', first), field('q', second)]),
     /wgsl-layout: two structs named "A"/,
   )
+})
+
+test('the public entry lays out, prints and writes', () => {
+  const type = api.struct('Light', [api.field('pos', api.vec3f), api.field('radius', api.f32)])
+  const laid = api.layout(type, 'storage')
+  const text = api.wgsl(type)
+  assert.equal(laid.size, 16)
+  assert.notEqual(text.indexOf('radius: f32'), -1)
+  const radius = laid.fields.find((item) => item.name === 'radius')
+  if (radius === undefined) {
+    throw new Error('missing radius')
+  }
+  const view = api.views(new ArrayBuffer(laid.size))
+  api.writeF32(view.f32, radius.offset, 1.5)
+  assert.equal(api.readF32(view.f32, radius.offset), 1.5)
 })
 
 test('push after struct does not add a field', () => {
