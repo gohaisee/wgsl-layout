@@ -1,3 +1,5 @@
+import { alignOf, sizeOf } from './layout.ts'
+
 export type Scalar = 'f32' | 'i32' | 'u32'
 
 export type Type =
@@ -97,83 +99,6 @@ export const mat4x4: Type = { kind: 'mat', cols: 4, rows: 4 }
 
 function fail(message: string): never {
   throw new Error(`wgsl-layout: ${message}`)
-}
-
-function roundUp(k: number, n: number): number {
-  // bitwise and truncates to 32 bits in js.
-  return Math.ceil(n / k) * k
-}
-
-function alignOfVec(n: 2 | 3 | 4): number {
-  if (n === 2) {
-    return 8
-  }
-  if (n === 3) {
-    // vec3 lines up on 16 bytes and stores 12. the next f32 may use the leftover 4. wgsl 14.4.1.
-    return 16
-  }
-  return 16
-}
-
-function sizeOfVec(n: 2 | 3 | 4): number {
-  return n * 4
-}
-
-export function alignOf(type: Type): number {
-  switch (type.kind) {
-    case 'scalar':
-      return 4
-    case 'vec':
-      return alignOfVec(type.n)
-    case 'mat':
-      return alignOfVec(type.rows)
-    case 'array':
-      return alignOf(type.of)
-    case 'struct': {
-      let max = 0
-      for (const item of type.fields) {
-        const align = item.align ?? alignOf(item.type)
-        if (align > max) {
-          max = align
-        }
-      }
-      return max
-    }
-    default:
-      return unreachable(type)
-  }
-}
-
-export function sizeOf(type: Type): number {
-  switch (type.kind) {
-    case 'scalar':
-      return 4
-    case 'vec':
-      return sizeOfVec(type.n)
-    case 'mat':
-      return type.cols * roundUp(alignOfVec(type.rows), sizeOfVec(type.rows))
-    case 'array':
-      return type.len * roundUp(alignOf(type.of), sizeOf(type.of))
-    case 'struct': {
-      let offset = 0
-      let max = 0
-      for (const item of type.fields) {
-        const align = item.align ?? alignOf(item.type)
-        const size = item.size ?? sizeOf(item.type)
-        if (align > max) {
-          max = align
-        }
-        offset = roundUp(align, offset) + size
-      }
-      return roundUp(max, offset)
-    }
-    default:
-      return unreachable(type)
-  }
-}
-
-function unreachable(type: never): never {
-  return fail(`unknown type ${JSON.stringify(type)}`)
 }
 
 function checkName(name: string): void {
